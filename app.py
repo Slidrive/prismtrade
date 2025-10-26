@@ -1,4 +1,4 @@
-﻿from flask import Flask, request, jsonify
+﻿from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from database import init_db, DBSession
 from models import User, Strategy, Backtest, Trade, StrategyStatus, TradingMode
@@ -6,13 +6,23 @@ from auth import hash_password, verify_password, create_access_token, get_user_f
 from datetime import datetime
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='frontend/build', static_url_path='')
 CORS(app)
 
 # Initialize database on startup
 with app.app_context():
     init_db()
     print("✅ Database initialized")
+
+# ==================== SERVE REACT FRONTEND ====================
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(os.path.join('frontend/build', path)):
+        return send_from_directory('frontend/build', path)
+    else:
+        return send_from_directory('frontend/build', 'index.html')
 
 # ==================== AUTH MIDDLEWARE ====================
 
@@ -36,18 +46,18 @@ def register():
         username = data.get('username')
         email = data.get('email')
         password = data.get('password')
-        
+
         if not all([username, email, password]):
             return jsonify({'error': 'Missing required fields'}), 400
-        
+
         with DBSession() as db:
             existing = db.query(User).filter(
                 (User.username == username) | (User.email == email)
             ).first()
-            
+
             if existing:
                 return jsonify({'error': 'User already exists'}), 400
-            
+
             user = User(
                 username=username,
                 email=email,
@@ -56,9 +66,9 @@ def register():
             db.add(user)
             db.commit()
             db.refresh(user)
-            
+
             token = create_access_token({"sub": str(user.id)})
-            
+
             return jsonify({
                 'token': token,
                 'user': {
@@ -68,7 +78,7 @@ def register():
                     'role': user.role.value
                 }
             }), 201
-            
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -78,23 +88,23 @@ def login():
         data = request.json
         username = data.get('username')
         password = data.get('password')
-        
+
         if not all([username, password]):
             return jsonify({'error': 'Missing credentials'}), 400
-        
+
         with DBSession() as db:
             user = db.query(User).filter(
                 (User.username == username) | (User.email == username)
             ).first()
-            
+
             if not user or not verify_password(password, user.password_hash):
                 return jsonify({'error': 'Invalid credentials'}), 401
-            
+
             user.last_login = datetime.utcnow()
             db.commit()
-            
+
             token = create_access_token({"sub": str(user.id)})
-            
+
             return jsonify({
                 'token': token,
                 'user': {
@@ -106,7 +116,7 @@ def login():
                     'live_balance': user.live_balance
                 }
             }), 200
-            
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -115,10 +125,10 @@ def get_me():
     try:
         auth_header = request.headers.get('Authorization')
         user = get_current_user(auth_header)
-        
+
         if not user:
             return jsonify({'error': 'Unauthorized'}), 401
-        
+
         return jsonify({
             'id': user.id,
             'username': user.username,
@@ -129,7 +139,7 @@ def get_me():
             'max_open_trades': user.max_open_trades,
             'risk_per_trade': user.risk_per_trade
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -140,13 +150,13 @@ def get_strategies():
     try:
         auth_header = request.headers.get('Authorization')
         user = get_current_user(auth_header)
-        
+
         if not user:
             return jsonify({'error': 'Unauthorized'}), 401
-        
+
         with DBSession() as db:
             strategies = db.query(Strategy).filter(Strategy.user_id == user.id).all()
-            
+
             return jsonify([{
                 'id': s.id,
                 'name': s.name,
@@ -163,7 +173,7 @@ def get_strategies():
                 'total_profit': s.total_profit,
                 'created_at': s.created_at.isoformat() if s.created_at else None
             } for s in strategies]), 200
-            
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -172,19 +182,19 @@ def get_strategy(strategy_id):
     try:
         auth_header = request.headers.get('Authorization')
         user = get_current_user(auth_header)
-        
+
         if not user:
             return jsonify({'error': 'Unauthorized'}), 401
-        
+
         with DBSession() as db:
             strategy = db.query(Strategy).filter(
                 Strategy.id == strategy_id,
                 Strategy.user_id == user.id
             ).first()
-            
+
             if not strategy:
                 return jsonify({'error': 'Strategy not found'}), 404
-            
+
             return jsonify({
                 'id': strategy.id,
                 'name': strategy.name,
@@ -200,7 +210,7 @@ def get_strategy(strategy_id):
                 'status': strategy.status.value,
                 'trading_mode': strategy.trading_mode.value
             }), 200
-            
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -209,12 +219,12 @@ def create_strategy():
     try:
         auth_header = request.headers.get('Authorization')
         user = get_current_user(auth_header)
-        
+
         if not user:
             return jsonify({'error': 'Unauthorized'}), 401
-        
+
         data = request.json
-        
+
         with DBSession() as db:
             strategy = Strategy(
                 user_id=user.id,
@@ -229,13 +239,13 @@ def create_strategy():
                 status=StrategyStatus.DRAFT,
                 trading_mode=TradingMode.PAPER
             )
-            
+
             db.add(strategy)
             db.commit()
             db.refresh(strategy)
-            
+
             return jsonify({'id': strategy.id, 'message': 'Strategy created'}), 201
-            
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -244,24 +254,24 @@ def delete_strategy(strategy_id):
     try:
         auth_header = request.headers.get('Authorization')
         user = get_current_user(auth_header)
-        
+
         if not user:
             return jsonify({'error': 'Unauthorized'}), 401
-        
+
         with DBSession() as db:
             strategy = db.query(Strategy).filter(
                 Strategy.id == strategy_id,
                 Strategy.user_id == user.id
             ).first()
-            
+
             if not strategy:
                 return jsonify({'error': 'Strategy not found'}), 404
-            
+
             db.delete(strategy)
             db.commit()
-            
+
             return jsonify({'message': 'Strategy deleted'}), 200
-            
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
