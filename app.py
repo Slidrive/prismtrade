@@ -1,147 +1,274 @@
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel
-from werkzeug.security import generate_password_hash, check_password_hash
-from jose import JWTError, jwt
-from datetime import datetime, timedelta
-import subprocess
-import json
-import sqlite3
+﻿from flask import Flask, request, jsonify
+from flask_cors import CORS
+from database import init_db, DBSession
+from models import User, Strategy, Backtest, Trade, StrategyStatus, TradingMode
+from auth import hash_password, verify_password, create_access_token, get_user_from_token
+from datetime import datetime
+import os
 
-SECRET_KEY = "your-secret-key-change-this-in-production"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+app = Flask(__name__)
+CORS(app)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+# Initialize database on startup
+with app.app_context():
+    init_db()
+    print("✅ Database initialized")
 
-app = FastAPI(title="Trading Platform API")
+# ==================== AUTH MIDDLEWARE ====================
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def get_current_user(token):
+    if not token or not token.startswith('Bearer '):
+        return None
+    token = token.replace('Bearer ', '')
+    user_data = get_user_from_token(token)
+    if not user_data:
+        return None
+    with DBSession() as db:
+        user = db.query(User).filter(User.id == user_data['user_id']).first()
+        return user
 
-def init_db():
-    conn = sqlite3.connect("trading.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            hashed_password TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
+# ==================== AUTH ENDPOINTS ====================
 
-init_db()
-
-class User(BaseModel):
-    username: str
-    email: str
-    password: str
-
-class UserLogin(BaseModel):
-    username: str
-    password: str
-
-class BacktestRequest(BaseModel):
-    strategy: str
-    timerange: str = "20240901-20241025"
-
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def verify_token(token: str):
+@app.route('/api/auth/register', methods=['POST'])
+def register():
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        return username
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        data = request.json
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        
+        if not all([username, email, password]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        with DBSession() as db:
+            existing = db.query(User).filter(
+                (User.username == username) | (User.email == email)
+            ).first()
+            
+            if existing:
+                return jsonify({'error': 'User already exists'}), 400
+            
+            user = User(
+                username=username,
+                email=email,
+                password_hash=hash_password(password)
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
+            token = create_access_token({"sub": str(user.id)})
+            
+            return jsonify({
+                'token': token,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role.value
+                }
+            }), 201
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-def get_user_from_db(username: str):
-    conn = sqlite3.connect("trading.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-    user = cursor.fetchone()
-    conn.close()
-    return user
-
-@app.post("/signup")
-def signup(user: User):
+@app.route('/api/auth/login', methods=['POST'])
+def login():
     try:
-        conn = sqlite3.connect("trading.db")
-        cursor = conn.cursor()
-        hashed_password = generate_password_hash(user.password)
-        cursor.execute(
-            "INSERT INTO users (username, email, hashed_password) VALUES (?, ?, ?)",
-            (user.username, user.email, hashed_password)
-        )
-        conn.commit()
-        conn.close()
-        return {"message": "User created successfully", "username": user.username}
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail="User already exists")
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not all([username, password]):
+            return jsonify({'error': 'Missing credentials'}), 400
+        
+        with DBSession() as db:
+            user = db.query(User).filter(
+                (User.username == username) | (User.email == username)
+            ).first()
+            
+            if not user or not verify_password(password, user.password_hash):
+                return jsonify({'error': 'Invalid credentials'}), 401
+            
+            user.last_login = datetime.utcnow()
+            db.commit()
+            
+            token = create_access_token({"sub": str(user.id)})
+            
+            return jsonify({
+                'token': token,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role.value,
+                    'paper_balance': user.paper_balance,
+                    'live_balance': user.live_balance
+                }
+            }), 200
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-@app.post("/login")
-def login(user: UserLogin):
-    db_user = get_user_from_db(user.username)
-    if not db_user or not check_password_hash(db_user[3], user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    access_token = create_access_token(data={"sub": user.username})
-    return {"access_token": access_token, "token_type": "bearer"}
+@app.route('/api/auth/me', methods=['GET'])
+def get_me():
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        return jsonify({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role.value,
+            'paper_balance': user.paper_balance,
+            'live_balance': user.live_balance,
+            'max_open_trades': user.max_open_trades,
+            'risk_per_trade': user.risk_per_trade
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-@app.get("/health")
+# ==================== STRATEGY ENDPOINTS ====================
+
+@app.route('/api/strategies', methods=['GET'])
+def get_strategies():
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        with DBSession() as db:
+            strategies = db.query(Strategy).filter(Strategy.user_id == user.id).all()
+            
+            return jsonify([{
+                'id': s.id,
+                'name': s.name,
+                'description': s.description,
+                'exchange': s.exchange,
+                'trading_pair': s.trading_pair,
+                'timeframe': s.timeframe,
+                'parameters': s.parameters,
+                'status': s.status.value,
+                'trading_mode': s.trading_mode.value,
+                'total_trades': s.total_trades,
+                'winning_trades': s.winning_trades,
+                'losing_trades': s.losing_trades,
+                'total_profit': s.total_profit,
+                'created_at': s.created_at.isoformat() if s.created_at else None
+            } for s in strategies]), 200
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/strategies/<int:strategy_id>', methods=['GET'])
+def get_strategy(strategy_id):
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        with DBSession() as db:
+            strategy = db.query(Strategy).filter(
+                Strategy.id == strategy_id,
+                Strategy.user_id == user.id
+            ).first()
+            
+            if not strategy:
+                return jsonify({'error': 'Strategy not found'}), 404
+            
+            return jsonify({
+                'id': strategy.id,
+                'name': strategy.name,
+                'description': strategy.description,
+                'exchange': strategy.exchange,
+                'trading_pair': strategy.trading_pair,
+                'timeframe': strategy.timeframe,
+                'parameters': strategy.parameters,
+                'entry_conditions': strategy.entry_conditions,
+                'exit_conditions': strategy.exit_conditions,
+                'stop_loss_pct': strategy.stop_loss_pct,
+                'take_profit_pct': strategy.take_profit_pct,
+                'status': strategy.status.value,
+                'trading_mode': strategy.trading_mode.value
+            }), 200
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/strategies', methods=['POST'])
+def create_strategy():
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        data = request.json
+        
+        with DBSession() as db:
+            strategy = Strategy(
+                user_id=user.id,
+                name=data.get('name'),
+                description=data.get('description', ''),
+                exchange=data.get('exchange'),
+                trading_pair=data.get('trading_pair'),
+                timeframe=data.get('timeframe'),
+                parameters=data.get('parameters', {}),
+                stop_loss_pct=data.get('stop_loss_pct'),
+                take_profit_pct=data.get('take_profit_pct'),
+                status=StrategyStatus.DRAFT,
+                trading_mode=TradingMode.PAPER
+            )
+            
+            db.add(strategy)
+            db.commit()
+            db.refresh(strategy)
+            
+            return jsonify({'id': strategy.id, 'message': 'Strategy created'}), 201
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/strategies/<int:strategy_id>', methods=['DELETE'])
+def delete_strategy(strategy_id):
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        with DBSession() as db:
+            strategy = db.query(Strategy).filter(
+                Strategy.id == strategy_id,
+                Strategy.user_id == user.id
+            ).first()
+            
+            if not strategy:
+                return jsonify({'error': 'Strategy not found'}), 404
+            
+            db.delete(strategy)
+            db.commit()
+            
+            return jsonify({'message': 'Strategy deleted'}), 200
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/health', methods=['GET'])
 def health():
-    return {"status": "ok", "version": "1.0"}
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()}), 200
 
-@app.get("/strategies")
-def list_strategies(token: str = Depends(oauth2_scheme)):
-    verify_token(token)
-    try:
-        result = subprocess.run(
-            ["freqtrade", "list-strategies", "--userdir", "user_data"],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        return {"strategies": result.stdout}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/backtest")
-def run_backtest(request: BacktestRequest, token: str = Depends(oauth2_scheme)):
-    verify_token(token)
-    try:
-        result = subprocess.run(
-            ["freqtrade", "backtesting", "--userdir", "user_data", 
-             "--strategy", request.strategy, "--timerange", request.timerange],
-            capture_output=True,
-            text=True,
-            timeout=120
-        )
-        return {
-            "strategy": request.strategy,
-            "output": result.stdout,
-            "error": result.stderr
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
