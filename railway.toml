@@ -1,0 +1,2 @@
+[build]
+nixpacks.pkgs = ["python@3.13.11"]
