@@ -28,4 +28,5 @@ class Trade(Base):
     side = Column(String(10), nullable=False)
     quantity = Column(Float, nullable=False)
     price = Column(Float, nullable=False)
+    total = Column(Float, nullable=False, default=0.0)
     timestamp = Column(DateTime, default=datetime.utcnow)

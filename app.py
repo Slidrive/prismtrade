@@ -1,4 +1,4 @@
-﻿from flask import Flask, request, jsonify, send_from_directory
+﻿from flask import Flask, request, jsonify
 from flask_cors import CORS
 from database import init_db, DBSession
 from models import User, Trade
@@ -7,18 +7,27 @@ from gemini_api import gemini
 from datetime import datetime
 import os
 
-app = Flask(__name__, static_folder='frontend/build', static_url_path='')
+app = Flask(__name__)
 CORS(app)
 
 with app.app_context():
     init_db()
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    if path and os.path.exists(os.path.join('frontend/build', path)):
-        return send_from_directory('frontend/build', path)
-    return send_from_directory('frontend/build', 'index.html')
+@app.route('/')
+def serve():
+    return jsonify({
+        'status': 'running',
+        'message': 'PrismTrade platform is running',
+        'endpoints': {
+            'health': '/api/health',
+            'register': '/api/auth/register',
+            'login': '/api/auth/login',
+            'me': '/api/auth/me',
+            'ticker': '/api/market/ticker/<pair>',
+            'candles': '/api/market/candles/<pair>/<timeframe>',
+            'trade': '/api/trades/execute',
+        }
+    }), 200
 
 def get_current_user(token):
     if not token or not token.startswith('Bearer '):
