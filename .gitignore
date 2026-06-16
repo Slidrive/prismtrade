@@ -1,0 +1,32 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.class
+venv/
+*.db
+*.sqlite3
+
+# Node
+node_modules/
+frontend/build/
+frontend/node_modules/
+
+# Environment
+.env
+.env.production
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Backups
+*.backup

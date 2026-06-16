@@ -1,0 +1,20 @@
+[build]
+builder = "nixpacks"
+
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["nodejs", "python311"]
+
+[build.nixpacksPlan.phases.install]
+cmds = [
+  "python -m pip install --upgrade pip",
+  "python -m pip install -r requirements.txt",
+  "cd frontend && npm install"
+]
+
+[build.nixpacksPlan.phases.build]
+cmds = [
+  "cd frontend && npm run build"
+]
+
+[deploy]
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 4"

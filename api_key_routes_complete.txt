@@ -1,0 +1,92 @@
+# Add these imports after "from datetime import datetime"
+from api_key_manager import key_manager
+from models import APIKey
+
+# Add these routes before @app.route('/api/health')
+
+@app.route('/api/api-keys/store', methods=['POST'])
+def store_api_key():
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        data = request.get_json()
+        exchange = data.get('exchange')
+        api_key = data.get('api_key')
+        api_secret = data.get('api_secret')
+        
+        if not all([exchange, api_key, api_secret]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        encrypted_key = key_manager.encrypt(api_key)
+        encrypted_secret = key_manager.encrypt(api_secret)
+        
+        with DBSession() as db:
+            existing = db.query(APIKey).filter(
+                APIKey.user_id == user.id,
+                APIKey.exchange == exchange
+            ).first()
+            
+            if existing:
+                existing.encrypted_key = encrypted_key
+                existing.encrypted_secret = encrypted_secret
+                existing.is_active = True
+            else:
+                new_key = APIKey(
+                    user_id=user.id,
+                    exchange=exchange,
+                    encrypted_key=encrypted_key,
+                    encrypted_secret=encrypted_secret
+                )
+                db.add(new_key)
+            
+            db.commit()
+            return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/api-keys/list', methods=['GET'])
+def list_api_keys():
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        with DBSession() as db:
+            keys = db.query(APIKey).filter(APIKey.user_id == user.id).all()
+            return jsonify({
+                'keys': [{
+                    'id': k.id,
+                    'exchange': k.exchange,
+                    'is_active': k.is_active,
+                    'created_at': k.created_at.isoformat()
+                } for k in keys]
+            }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/api-keys/<int:key_id>', methods=['DELETE'])
+def delete_api_key(key_id):
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        with DBSession() as db:
+            key = db.query(APIKey).filter(
+                APIKey.id == key_id,
+                APIKey.user_id == user.id
+            ).first()
+            
+            if not key:
+                return jsonify({'error': 'API key not found'}), 404
+            
+            db.delete(key)
+            db.commit()
+            return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

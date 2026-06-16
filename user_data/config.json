@@ -1,0 +1,29 @@
+{
+    "max_open_trades": 3,
+    "stake_currency": "USDT",
+    "stake_amount": 100,
+    "dry_run": true,
+    "dry_run_wallet": 1000,
+    "trading_mode": "spot",
+    "exchange": {
+        "name": "binance",
+        "key": "",
+        "secret": "",
+        "ccxt_config": {"enableRateLimit": true},
+        "pair_whitelist": ["BTC/USDT", "ETH/USDT", "ADA/USDT"],
+        "pair_blacklist": []
+    },
+    "pairlists": [{"method": "StaticPairList"}],
+    "telegram": {
+        "enabled": false,
+        "token": "dummy",
+        "chat_id": "dummy"
+    },
+    "api_server": {
+        "enabled": true,
+        "listen_ip_address": "127.0.0.1",
+        "listen_port": 8080,
+        "username": "freqtrader",
+        "password": "freqtrader"
+    }
+}

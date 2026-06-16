@@ -1,0 +1,84 @@
+# Add these imports at the top of app.py (after existing imports)
+from exchange_connector import ExchangeConnector
+
+# Add these routes before @app.route('/api/health')
+
+@app.route('/api/trading/balance', methods=['GET'])
+def get_balance():
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        exchange = request.args.get('exchange', 'gemini')
+        
+        connector = ExchangeConnector(user.id, exchange)
+        balance = connector.get_balance()
+        
+        return jsonify({'balance': balance}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/trading/ticker/<symbol>', methods=['GET'])
+def get_ticker(symbol):
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        exchange = request.args.get('exchange', 'gemini')
+        
+        connector = ExchangeConnector(user.id, exchange)
+        ticker = connector.get_ticker(symbol)
+        
+        return jsonify({'ticker': ticker}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/trading/buy', methods=['POST'])
+def execute_buy():
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        data = request.get_json()
+        exchange = data.get('exchange', 'gemini')
+        symbol = data.get('symbol')
+        amount = data.get('amount')
+        
+        if not symbol or not amount:
+            return jsonify({'error': 'Symbol and amount required'}), 400
+        
+        connector = ExchangeConnector(user.id, exchange)
+        order = connector.create_market_buy(symbol, float(amount))
+        
+        return jsonify({'success': True, 'order': order}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/trading/sell', methods=['POST'])
+def execute_sell():
+    try:
+        auth_header = request.headers.get('Authorization')
+        user = get_current_user(auth_header)
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        data = request.get_json()
+        exchange = data.get('exchange', 'gemini')
+        symbol = data.get('symbol')
+        amount = data.get('amount')
+        
+        if not symbol or not amount:
+            return jsonify({'error': 'Symbol and amount required'}), 400
+        
+        connector = ExchangeConnector(user.id, exchange)
+        order = connector.create_market_sell(symbol, float(amount))
+        
+        return jsonify({'success': True, 'order': order}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

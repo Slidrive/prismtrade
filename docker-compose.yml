@@ -1,0 +1,41 @@
+# PrismTrade — Hostinger VPS (Ubuntu 24.04 + Docker + Traefik) deploy.
+# Edit the two placeholders before `docker compose up`:
+#   1. app.yourdomain.com  -> your real domain/subdomain (A record -> 145.79.7.61)
+#   2. <TRAEFIK_NET>        -> the external network Traefik is on (run: docker network ls)
+# Also confirm Traefik's entrypoint name (often "websecure") and certresolver name
+# in /etc/traefik/ and adjust the labels if they differ.
+
+services:
+  app:
+    build: .
+    env_file: .env
+    depends_on: [db]
+    networks: [default, proxy]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prism.rule=Host(`app.yourdomain.com`)"
+      - "traefik.http.routers.prism.entrypoints=websecure"
+      - "traefik.http.routers.prism.tls=true"
+      - "traefik.http.routers.prism.tls.certresolver=letsencrypt"
+      - "traefik.http.services.prism.loadbalancer.server.port=5000"
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: prism
+      POSTGRES_PASSWORD: CHANGE_ME_STRONG   # must match the password in .env DATABASE_URL
+      POSTGRES_DB: prismtrade
+    volumes:
+      - prism_db:/var/lib/postgresql/data
+    networks: [default]
+    restart: unless-stopped
+
+volumes:
+  prism_db:
+
+networks:
+  default:
+  proxy:
+    external: true
+    name: <TRAEFIK_NET>
