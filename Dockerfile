@@ -5,8 +5,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY frontend/package*.json ./frontend/
 WORKDIR /app/frontend
-RUN npm ci
+RUN npm install --no-audit --no-fund
 COPY frontend/ .
+ENV CI=false
 RUN npm run build
 WORKDIR /app
 COPY . .
