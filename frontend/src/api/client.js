@@ -1,6 +1,8 @@
 ﻿import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Empty default = same-origin relative requests (Flask serves the SPA + /api together).
+// In local dev, the "proxy" field in package.json forwards /api to localhost:5000.
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const apiClient = axios.create({
   baseURL: API_URL,
