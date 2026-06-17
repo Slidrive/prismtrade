@@ -546,6 +546,20 @@ def get_trade_history():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ==================== MARKET DATA (server-side proxy, avoids browser CORS/geo-block) ====================
+
+@app.route('/api/market/candles', methods=['GET'])
+def market_candles():
+    try:
+        import market_proxy
+        symbol = request.args.get('symbol', 'BTCUSDT')
+        interval = request.args.get('interval', '1m')
+        limit = int(request.args.get('limit', 500))
+        candles = market_proxy.fetch_candles(symbol, interval, limit)
+        return jsonify(candles), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+
 # ==================== HEALTH CHECK ====================
 
 @app.route('/api/health', methods=['GET'])

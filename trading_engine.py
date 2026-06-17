@@ -35,9 +35,10 @@ class TradingEngine:
         return symbol
 
     def _public_price(self, symbol: str):
-        """Live price from public Binance data — no API key needed (for PAPER)."""
+        """Live price from public market data — no API key needed (for PAPER).
+        Uses Binance.US (reachable from US servers; api.binance.com is geo-blocked)."""
         try:
-            ex = ccxt.binance({'enableRateLimit': True})
+            ex = ccxt.binanceus({'enableRateLimit': True})
             return float(ex.fetch_ticker(self._to_ccxt_symbol(symbol))['last'])
         except Exception as e:
             logger.warning(f"public price fetch failed for {symbol}: {e}")

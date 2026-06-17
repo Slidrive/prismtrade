@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import TradingChart from '../components/TradingChart';
 import { tradeAPI } from '../api/client';
 
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
+const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT'];
 const INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
 export default function Trade() {
