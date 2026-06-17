@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { strategyAPI, tradeAPI } from '../api/client';
+import NavBar from '../components/NavBar';
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
   const [strategies, setStrategies] = useState([]);
   const [trades, setTrades] = useState([]);
   const [stats, setStats] = useState({ total_pnl: 0, win_rate: 0, total_trades: 0 });
@@ -40,17 +39,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0e27', color: '#00ff41' }}>
-      <nav style={{ background: '#1a1f3a', padding: '1rem 2rem', borderBottom: '1px solid #00ff41', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>PRISM TRADE</h1>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <Link to="/" style={{ color: '#00ff41', textDecoration: 'none', fontWeight: 'bold' }}>DASHBOARD</Link>
-          <Link to="/strategies" style={{ color: '#00ff41', textDecoration: 'none' }}>STRATEGIES</Link>
-          <Link to="/trading" style={{ color: '#00ff41', textDecoration: 'none' }}>TRADING</Link>
-          <Link to="/api-keys" style={{ color: '#00ff41', textDecoration: 'none' }}>API KEYS</Link>
-          <span style={{ color: '#888' }}>{user?.username}</span>
-          <button onClick={logout} style={{ padding: '0.5rem 1rem', background: 'transparent', border: '1px solid #00ff41', color: '#00ff41', cursor: 'pointer', borderRadius: '4px' }}>LOGOUT</button>
-        </div>
-      </nav>
+      <NavBar />
       <div style={{ padding: '2rem' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
           <div style={{ background: '#1a1f3a', padding: '1.5rem', borderRadius: '8px', border: '1px solid #00ff41' }}>

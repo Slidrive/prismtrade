@@ -25,6 +25,7 @@ function App() {
           <Route path='/strategies' element={<PrivateRoute><Strategies /></PrivateRoute>} />
           <Route path='/strategies/new' element={<PrivateRoute><StrategyForm /></PrivateRoute>} />
           <Route path='/trading' element={<PrivateRoute><Trade /></PrivateRoute>} />
+          <Route path='*' element={<Navigate to='/' />} />
         </Routes>
       </Router>
     </AuthProvider>

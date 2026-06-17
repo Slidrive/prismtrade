@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { strategyAPI, backtestAPI } from '../api/client';
+import NavBar from '../components/NavBar';
 
 export default function StrategyForm() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export default function StrategyForm() {
     setLoading(false);
   };
   const s = { width: '100%', padding: '0.75rem', background: '#0a0e27', border: '1px solid #00ff41', color: '#00ff41', borderRadius: '4px' };
-  return (<div style={{ minHeight: '100vh', background: '#0a0e27', color: '#00ff41', padding: '2rem' }}><div style={{ maxWidth: '1200px', margin: '0 auto' }}><h1>CREATE STRATEGY</h1><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}><div style={{ background: '#1a1f3a', padding: '2rem', borderRadius: '8px', border: '1px solid #00ff41' }}><form onSubmit={handleBacktest}>
+  return (<div style={{ minHeight: '100vh', background: '#0a0e27', color: '#00ff41' }}><NavBar /><div style={{ padding: '2rem' }}><div style={{ maxWidth: '1200px', margin: '0 auto' }}><h1>CREATE STRATEGY</h1><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}><div style={{ background: '#1a1f3a', padding: '2rem', borderRadius: '8px', border: '1px solid #00ff41' }}><form onSubmit={handleBacktest}>
 <div style={{ marginBottom: '1rem' }}><label style={{ display: 'block', marginBottom: '0.5rem' }}>Strategy Name</label><input name="name" value={formData.name} onChange={handleChange} style={s} required /></div>
 <div style={{ marginBottom: '1rem' }}><label style={{ display: 'block', marginBottom: '0.5rem' }}>Description</label><textarea name="description" value={formData.description} onChange={handleChange} style={{...s, minHeight: '60px'}} /></div>
 <div style={{ marginBottom: '1rem' }}><label style={{ display: 'block', marginBottom: '0.5rem' }}>Trading Pair</label><input name="trading_pair" value={formData.trading_pair} onChange={handleChange} style={s} /></div>
@@ -31,4 +32,4 @@ export default function StrategyForm() {
 <div style={{ marginBottom: '0.5rem' }}>Total Trades: {backtestResults.total_trades}</div>
 <div style={{ marginBottom: '0.5rem' }}>Profit Factor: {backtestResults.profit_factor?.toFixed(2)}</div>
 <div style={{ marginBottom: '1rem' }}>Max Drawdown: {backtestResults.max_drawdown_pct?.toFixed(2)}%</div>
-<button onClick={() => navigate('/strategies')} style={{ width: '100%', padding: '1rem', background: '#00ff41', border: 'none', color: '#0a0e27', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer' }}>SAVE STRATEGY</button></div>)}</div></div></div></div>);}
+<button onClick={() => navigate('/strategies')} style={{ width: '100%', padding: '1rem', background: '#00ff41', border: 'none', color: '#0a0e27', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer' }}>SAVE STRATEGY</button></div>)}</div></div></div></div></div>);}
