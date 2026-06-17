@@ -16,18 +16,25 @@ export default function Dashboard() {
   const loadData = async () => {
     try {
       const [stratRes, tradeRes] = await Promise.all([strategyAPI.getAll(), tradeAPI.getAll({ limit: 10 })]);
-      setStrategies(stratRes.data);
-      setTrades(tradeRes.data);
-      calculateStats(tradeRes.data);
+      // Endpoints may return a bare array or { trades: [...] } / { strategies: [...] }.
+      const strats = Array.isArray(stratRes.data) ? stratRes.data : (stratRes.data?.strategies || []);
+      const trs = Array.isArray(tradeRes.data) ? tradeRes.data : (tradeRes.data?.trades || []);
+      setStrategies(strats);
+      setTrades(trs);
+      calculateStats(trs);
     } catch (err) {
       console.error('Error loading data:', err);
+      setStrategies([]);
+      setTrades([]);
     }
   };
 
   const calculateStats = (trades) => {
-    const total = trades.length;
-    const winners = trades.filter(t => t.pnl > 0).length;
-    const pnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+    const list = Array.isArray(trades) ? trades : [];
+    const pnlOf = (t) => (t.profit_loss ?? t.pnl ?? 0);
+    const total = list.length;
+    const winners = list.filter(t => pnlOf(t) > 0).length;
+    const pnl = list.reduce((sum, t) => sum + pnlOf(t), 0);
     setStats({ total_pnl: pnl, win_rate: total ? (winners / total) * 100 : 0, total_trades: total });
   };
 
@@ -95,14 +102,17 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {trades.slice(0, 10).map(t => (
-                  <tr key={t.id} style={{ borderBottom: '1px solid #2a2f4a' }}>
-                    <td style={{ padding: '0.75rem' }}>{new Date(t.entry_time).toLocaleString()}</td>
+                {trades.slice(0, 10).map((t, i) => {
+                  const pnl = t.profit_loss ?? t.pnl ?? 0;
+                  return (
+                  <tr key={t.trade_id ?? t.id ?? i} style={{ borderBottom: '1px solid #2a2f4a' }}>
+                    <td style={{ padding: '0.75rem' }}>{t.entry_time ? new Date(t.entry_time).toLocaleString() : '—'}</td>
                     <td style={{ padding: '0.75rem' }}>{t.symbol}</td>
-                    <td style={{ padding: '0.75rem', color: t.side === 'buy' ? '#00ff41' : '#ff4444' }}>{t.side.toUpperCase()}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', color: t.pnl >= 0 ? '#00ff41' : '#ff4444' }}>${t.pnl?.toFixed(2) || '0.00'}</td>
+                    <td style={{ padding: '0.75rem', color: t.side === 'buy' ? '#00ff41' : '#ff4444' }}>{(t.side || '').toUpperCase()}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', color: pnl >= 0 ? '#00ff41' : '#ff4444' }}>${Number(pnl).toFixed(2)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
